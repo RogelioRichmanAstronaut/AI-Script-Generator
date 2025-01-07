@@ -61,8 +61,8 @@ For example:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ai-lecture-forge.git
-cd ai-lecture-forge
+git clone https://github.com/RogelioRichmanAstronaut/AI-LectureForge.git
+cd AI-LectureForge
 
 # Create and activate virtual environment
 python -m venv venv
@@ -206,7 +206,8 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 📧 Contact
 
-Project Link: [https://github.com/yourusername/ai-lecture-forge](https://github.com/yourusername/ai-lecture-forge)
+
+Project Link: [https://github.com/RogelioRichmanAstronaut/AI-LectureForge](https://github.com/RogelioRichmanAstronaut/AI-LectureForge) 
 
 ## 🔮 Roadmap
 
