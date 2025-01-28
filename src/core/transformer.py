@@ -1,23 +1,13 @@
 import os
 import logging
 import json
-from typing import List, Dict, Optional, Union, Literal
-
+from typing import List, Dict, Optional
 import openai
-import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer
 from src.utils.text_processor import TextProcessor
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Pre-defined models
-LocalModelType = Literal["phi-4", "sky-t1-32b", "deepseek-v3"]
-APIProvider = Literal["openai", "gemini"]
-
-# Custom type for model selection
-ModelType = Union[LocalModelType, str]  # str for custom API model names
 
 class WordCountError(Exception):
     """Raised when word count requirements are not met"""
@@ -26,151 +16,32 @@ class WordCountError(Exception):
 class TranscriptTransformer:
     """Transforms conversational transcripts into teaching material using LLM"""
     
-    MAX_RETRIES = 3
-    CHUNK_SIZE = 6000
-    LARGE_DEVIATION_THRESHOLD = 0.20
+    MAX_RETRIES = 3  # Maximum retries for content generation
+    CHUNK_SIZE = 6000  # Target words per chunk
+    LARGE_DEVIATION_THRESHOLD = 0.20  # 20% maximum deviation
     
-    # Model IDs for local models
-    LOCAL_MODEL_IDS = {
-        "phi-4": "microsoft/phi-4",
-        "sky-t1-32b": "NovaSky-AI/Sky-T1-32B-Preview",
-        "deepseek-v3": "deepseek-ai/DeepSeek-V3"
-    }
-    
-    # Model context limits (in tokens)
-    MODEL_LIMITS = {
-        # Local models
-        "phi-4": 16384,
-        "sky-t1-32b": 4096,
-        "deepseek-v3": 8192,
-        # OpenAI models
-        "gpt-3.5-turbo": 4096,
-        "gpt-4": 8192,
-        "gpt-4-turbo": 128000,
-        "gpt-4o-mini": 8192,
-        # Gemini models
-        "gemini-pro": 32768,
-        "gemini-2.0-flash-exp": 128000
-    }
-    
-    def __init__(self, model_type: ModelType = "phi-4", api_provider: Optional[APIProvider] = None, custom_context: Optional[int] = None):
-        """
-        Initialize the transformer with selected LLM
-        
-        Args:
-            model_type: Model to use. Can be a local model name or custom API model name
-            api_provider: If using custom model name, specify the API provider
-            custom_context: Custom context limit for models not in predefined list
-        """
+    def __init__(self, use_gemini: bool = True):
+        """Initialize the transformer with selected LLM client"""
         self.text_processor = TextProcessor()
-        self.model_type = model_type
-        self.api_provider = api_provider
+        self.use_gemini = use_gemini
         
-        # Get model's context limit
-        if custom_context is not None:
-            self.max_tokens = custom_context
-            logger.info(f"Using custom context limit: {self.max_tokens} tokens")
-        else:
-            self.max_tokens = self.MODEL_LIMITS.get(model_type, 4096)
-            logger.info(f"Model {model_type} context limit: {self.max_tokens} tokens")
-        
-        # Local models
-        if model_type in self.LOCAL_MODEL_IDS:
-            logger.info(f"Initializing local model: {model_type}")
-            self.tokenizer = AutoTokenizer.from_pretrained(self.LOCAL_MODEL_IDS[model_type])
-            self.model = AutoModelForCausalLM.from_pretrained(
-                self.LOCAL_MODEL_IDS[model_type],
-                torch_dtype=torch.float16,
-                device_map="auto"
+        if use_gemini:
+            logger.info("Initializing with Gemini API")
+            self.openai_client = openai.OpenAI(
+                api_key=os.getenv('GEMINI_API_KEY'),
+                base_url="https://generativelanguage.googleapis.com/v1beta"
             )
-            self.model.eval()
-        
-        # API models
-        elif api_provider:
-            if api_provider == "openai":
-                if not os.getenv('OPENAI_API_KEY'):
-                    raise ValueError("OPENAI_API_KEY not found in environment variables")
-                logger.info(f"Initializing OpenAI model: {model_type}")
-                self.openai_client = openai.OpenAI(
-                    api_key=os.getenv('OPENAI_API_KEY')
-                )
-                self.model_name = model_type
-                
-            elif api_provider == "gemini":
-                if not os.getenv('GOOGLE_API_KEY'):
-                    raise ValueError("GOOGLE_API_KEY not found in environment variables")
-                logger.info(f"Initializing Gemini model: {model_type}")
-                self.openai_client = openai.OpenAI(
-                    api_key=os.getenv('GOOGLE_API_KEY'),
-                    base_url="https://generativelanguage.googleapis.com/v1beta"
-                )
-                self.model_name = model_type
+            self.model_name = "gemini-2.0-flash-exp"
         else:
-            raise ValueError("For custom model names, api_provider must be specified")
+            logger.info("Initializing with OpenAI API")
+            self.openai_client = openai.OpenAI(
+                api_key=os.getenv('OPENAI_API_KEY')
+            )
+            self.model_name = "gpt-3.5-turbo"
         
         # Target word counts
-        self.words_per_minute = 130
-
-    def _get_safe_max_tokens(self, prompt_tokens: int) -> int:
-        """Calculate safe max tokens for generation based on model's context limit"""
-        available_tokens = self.max_tokens - prompt_tokens
-        # Reserve 10% for safety
-        safe_tokens = int(available_tokens * 0.9)
-        return max(100, min(safe_tokens, 8000))  # Between 100 and 8000
+        self.words_per_minute = 130  # Average speaking rate
         
-    def _generate_with_local_model(self, prompt: str, max_tokens: Optional[int] = None) -> str:
-        """Generate text using local models"""
-        inputs = self.tokenizer(prompt, return_tensors="pt", truncation=True).to(self.model.device)
-        prompt_length = len(inputs.input_ids[0])
-        
-        # Calculate safe max_tokens if not provided
-        if max_tokens is None:
-            max_tokens = self._get_safe_max_tokens(prompt_length)
-            
-        logger.info(f"Generating with {max_tokens} tokens (prompt: {prompt_length} tokens)")
-        
-        with torch.no_grad():
-            outputs = self.model.generate(
-                inputs.input_ids,
-                max_new_tokens=max_tokens,
-                do_sample=True,
-                temperature=0.7,
-                pad_token_id=self.tokenizer.pad_token_id,
-                eos_token_id=self.tokenizer.eos_token_id
-            )
-        
-        response = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return response[len(prompt):].strip()
-
-    def _generate_with_api(self, prompt: str, max_tokens: Optional[int] = None) -> str:
-        """Generate text using API models"""
-        # For APIs, we need to estimate prompt tokens
-        prompt_tokens = len(prompt.split()) * 1.3  # Rough estimation
-        
-        # Calculate safe max_tokens if not provided
-        if max_tokens is None:
-            max_tokens = self._get_safe_max_tokens(int(prompt_tokens))
-            
-        logger.info(f"Generating with {max_tokens} tokens (estimated prompt: {int(prompt_tokens)} tokens)")
-        
-        response = self.openai_client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": "You are an expert educator creating a coherent lecture transcript."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=max_tokens
-        )
-        return response.choices[0].message.content.strip()
-
-    def _generate_text(self, prompt: str, max_tokens: int = 1000) -> str:
-        """Generate text using selected model"""
-        if self.model_type in self.LOCAL_MODEL_IDS:
-            return self._generate_with_local_model(prompt, max_tokens)
-        else:
-            return self._generate_with_api(prompt, max_tokens)
-
     def _validate_word_count(self, total_words: int, target_words: int, min_words: int, max_words: int) -> None:
         """Validate word count with flexible thresholds and log warnings/errors"""
         deviation = abs(total_words - target_words) / target_words

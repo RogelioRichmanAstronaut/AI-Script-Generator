@@ -1,171 +1,222 @@
----
-title: AI Lecture Forge
-emoji: 📚
-colorFrom: blue
-colorTo: green
-sdk: gradio
-sdk_version: 4.0.0
-app_file: src/app.py
-pinned: false
----
+# 🎓 AI LectureForge
 
-# AI Lecture Forge
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-🏆 Production-ready AI system for transforming conversational transcripts into structured teaching material.
+> Transform PDF transcripts and conversations into structured teaching materials using AI
 
-## Overview
+AI LectureForge is an advanced AI system that converts PDF transcripts and conversational content into well-structured teaching materials. It seamlessly processes PDF inputs, extracting and analyzing the content to create organized, pedagogically sound lecture materials. Designed for educators, content creators, and anyone looking to transform knowledge sharing.
 
-AI Lecture Forge is a state-of-the-art system that leverages multiple AI models to transform raw transcripts into professional teaching materials. It supports both local inference and API-based models, with optional Text-to-Speech capabilities.
+## ✨ Features
 
-## Key Features
+- 🤖 PDF transcript processing and text extraction
+- 🤖 AI-powered content transformation
+- 📚 Structured teaching material generation
+- 🔄 Coherent topic organization
+- 🔌 Support for multiple AI providers (Gemini/OpenAI)
+- ⏱️ Time-marked sections for lecture pacing
 
-### Multiple AI Models
-- **Local Models** (No API key required):
-  - Microsoft Phi-4 (default)
-  - NovaSky Sky-T1-32B
-  - DeepSeek V3
-- **OpenAI Models** (API key required):
-  - Default: gpt-4o-mini
-  - Supports all OpenAI models
-- **Google Models** (API key required):
-  - Default: gemini-2.0-flash-exp
-  - Supports all Gemini models
+## Output Format
 
-### Text-to-Speech (Optional)
-- Kokoro-82M voice synthesis
-- High-quality audio generation
-- Multiple voice options
+The generated teaching materials follow a structured format:
 
-### Core Features
-- PDF transcript processing
-- Customizable lecture duration (30-60 minutes)
-- Practical examples integration
-- Structured output with sections
-- Real-time processing
+### Time Markers
+- Each section includes time markers (e.g., `[11:45]`) to help instructors pace their lectures
+- 30-minute version: Sections are timed appropriately for a condensed lecture
+- 60-minute version: Expanded content with more detailed timing
 
-## Technologies Used
+### Structure
+- Introduction with learning objectives
+- Time-marked content sections
+- Examples and practical applications
+- Interactive elements (questions, exercises)
+- Recap and key takeaways
 
-- **Python 3.8+**
-- **PyTorch + Transformers**: Local inference with multiple models
-  - Microsoft Phi-4 (default)
-  - NovaSky Sky-T1-32B
-  - DeepSeek V3
-- **Text-to-Speech**: Kokoro-82M for voice generation
-- **Gradio 4.0.0**: Web interface framework
-- **OpenAI API** (optional): Multiple models
-  - Default: gpt-4o-mini
-  - Supports all OpenAI models
-- **Google Gemini API** (optional): Multiple models
-  - Default: gemini-2.0-flash-exp
-  - Supports all Gemini models
-- **PyPDF2**: PDF processing
-- **python-dotenv**: Environment management
-- **tiktoken**: Token counting for OpenAI
-- **tqdm**: Progress bars
-- **numpy**: Numerical operations
+For example:
+```
+[00:00] Introduction to Topic
+- Learning objectives
+- Key concepts overview
 
-## Quick Start
+[11:45] Main Concept Explanation
+- Detailed explanation
+- Practical example
+- Student interaction point
 
-### Local Development
+[23:30] Advanced Applications
+...
+```
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Python 3.8 or higher
+- Virtual environment (recommended)
+- Gemini API key (or OpenAI API key)
+
+### Installation
+
 ```bash
-# Clone repository
-git clone [repository-url]
-cd ai-lecture-forge
+# Clone the repository
+git clone https://github.com/RogelioRichmanAstronaut/AI-LectureForge.git
+cd AI-LectureForge
+
+# Create and activate virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: .\venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
 
-# Optional: Configure API keys
-# Create .env file if using API models
-touch .env
-echo "OPENAI_API_KEY=your_key" >> .env
-echo "GOOGLE_API_KEY=your_key" >> .env
+# Set up environment variables (choose one API key based on your preference)
+export GEMINI_API_KEY='your-gemini-api-key'  # Primary option
+# OR
+export OPENAI_API_KEY='your-openai-api-key'  # Alternative option
 
-# Run application
-python src/app.py
+# On Windows use:
+# set GEMINI_API_KEY=your-gemini-api-key
+# set OPENAI_API_KEY=your-openai-api-key
 ```
 
-### Hugging Face Spaces Deployment
-1. Create new Space
-   - Select SDK: Gradio
-   - Hardware: T4 GPU (recommended)
-2. Connect repository
-3. Optional: Add API keys in Settings
-   - OPENAI_API_KEY (if using OpenAI models)
-   - GOOGLE_API_KEY (if using Gemini models)
+### Usage
 
-## API Keys Configuration
+```bash
+# Run with Python path set
+PYTHONPATH=$PYTHONPATH:. python src/app.py
 
-There are two ways to provide API keys:
-
-### 1. Through Web Interface (Recommended)
-When using API models, the interface will show secure input fields for:
-- OpenAI API Key (when using OpenAI models)
-- Gemini API Key (when using Gemini models)
-
-This is the recommended method for:
-- Public deployments
-- Hugging Face Spaces
-- Shared instances
-
-### 2. Using Environment Variables
-For local development or private deployments:
-```env
-# Optional: Create .env file
-OPENAI_API_KEY=your_openai_key
-GOOGLE_API_KEY=your_gemini_key
+# Access the web interface
+# Open http://localhost:7860 in your browser
 ```
 
-Note: If both methods are used, keys provided through the interface take precedence.
+## 🛠️ Technical Approach
 
-## Environment Configuration
+### Prompt Engineering Strategy
 
-The `.env` file is optional and only required when using API-based models:
+Our system uses a sophisticated multi-stage prompting approach:
 
-```env
-# Required for OpenAI models
-OPENAI_API_KEY=your_openai_key
+1. **Content Analysis & Chunking**
+   - Smart text segmentation for handling large documents (9000+ words)
+   - Contextual overlap between chunks to maintain coherence
+   - Key topic and concept extraction from each segment
 
-# Required for Gemini models
-GOOGLE_API_KEY=your_gemini_key
-```
+2. **Structure Generation**
+   - Time-based sectioning (30/60 minute versions)
+   - Educational flow design with clear progression
+   - Integration of pedagogical elements (examples, exercises, questions)
 
-Note: Local models (Phi-4, Sky-T1-32B, DeepSeek V3) work without any API keys.
+3. **Educational Enhancement**
+   - Transformation of casual content into formal teaching material
+   - Addition of practical examples and case studies
+   - Integration of interaction points and reflection questions
+   - Time markers for pacing guidance
 
-## Model Selection Guide
+4. **Coherence Validation**
+   - Cross-reference checking between sections
+   - Verification of topic flow and progression
+   - Consistency check for terminology and concepts
+   - Quality assessment of educational elements
 
-### Local Models
-- Best for: Development, testing, offline use
-- No API costs
-- GPU recommended for better performance
+### Challenges & Solutions
 
-### API Models
-- Best for: Production, high-quality output
-- Requires API keys
-- Pay-per-use pricing
+1. **Context Length Management**
+   - Challenge: Handling documents beyond model context limits
+   - Solution: Implemented sliding window chunking with overlap
+   - Result: Successfully processes documents up to 9000+ words with extensibility for more
 
-### TTS Integration
-- Optional feature
-- Adds voice synthesis capability
-- Uses Kokoro-82M model
+2. **Educational Structure**
+   - Challenge: Converting conversational text to teaching format
+   - Solution: 
+     - Structured templating system for different time formats (30/60 min)
+     - Integration of pedagogical elements (examples, exercises)
+     - Time-based sectioning with clear progression
+   - Result: Coherent, time-marked teaching materials with interactive elements
 
-## Performance Considerations
+3. **Content Coherence**
+   - Challenge: Maintaining narrative flow across chunked content
+   - Solution: 
+     - Contextual overlap between chunks
+     - Topic tracking across sections
+     - Cross-reference validation system
+   - Result: Seamless content flow with consistent terminology
 
-- GPU recommended for local models
-- T4 GPU or better for optimal performance
-- CPU-only mode available but slower
-- API models not affected by hardware
+4. **Educational Quality**
+   - Challenge: Ensuring high pedagogical value
+   - Solution:
+     - Integration of learning objectives
+     - Strategic placement of examples and exercises
+     - Addition of reflection questions
+     - Time-appropriate pacing markers
+   - Result: Engaging, structured learning materials
 
-## Contributing
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+### Core Components
 
-## License
-MIT License - See [LICENSE](LICENSE) for details.
+1. **PDF Processing**: Extracts and cleans text from PDF transcripts
+2. **Content Analysis**: Uses AI to understand and structure the content
+3. **Teaching Material Generation**: Transforms content into educational format
 
-## Competition & Production Use
-This project is designed for production environments and competitive scenarios:
-- Production-ready error handling
-- Scalable architecture
-- Multiple model fallbacks
-- Comprehensive logging
-- Performance optimization 
+### Implementation Details
+
+1. **PDF Handling**
+   - Robust PDF text extraction
+   - Clean-up of extracted content
+
+2. **AI Processing**
+   - Integration with Gemini API (primary)
+   - OpenAI API support (alternative)
+   - Structured prompt system for consistent output
+
+3. **Output Generation**
+   - Organized teaching materials
+   - Clear section structure
+   - Learning points and key concepts
+
+### Architecture
+
+The system follows a modular design:
+
+- 📄 PDF processing module
+- 🔍 Text analysis component
+- 🤖 AI integration layer
+- 📝 Output formatting system
+
+## 🤝 Contributing
+
+Contributions are what make the open source community amazing! Any contributions you make are **greatly appreciated**.
+
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed guidelines.
+
+## 📝 License
+
+Distributed under the MIT License. See `LICENSE` for more information.
+
+## 🌟 Acknowledgments
+
+- Thanks to all contributors who have helped shape LectureForge
+- Special thanks to the Gemini and OpenAI teams for their amazing APIs
+- Inspired by educators worldwide who make learning engaging
+
+## 📧 Contact
+
+
+Project Link: [https://github.com/RogelioRichmanAstronaut/AI-LectureForge](https://github.com/RogelioRichmanAstronaut/AI-LectureForge) 
+
+## 🔮 Roadmap
+
+- [ ] Support for multiple output formats (PDF, PPTX)
+- [ ] Interactive elements generation
+- [ ] Custom templating system
+- [ ] Multi-language support
+- [ ] Integration with LMS platforms
+
+---
+
+<p align="center">Made with ❤️ for educators everywhere</p> 
