@@ -57,3 +57,6 @@ logs/
 
 # Gradio
 .gradio/ 
+
+# private file
+/data/sample3.pdf

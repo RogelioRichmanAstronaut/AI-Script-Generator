@@ -13,34 +13,45 @@ class TranscriptTransformerApp:
         self.text_processor = TextProcessor()
 
     def process_transcript(self, 
-                         file_obj: gr.File, 
-                         target_duration: int = 30,
-                         include_examples: bool = True,
-                         use_gemini: bool = True) -> str:
+                           file_obj: gr.File,
+                           initial_prompt: str = "",
+                           target_duration: int = 30,
+                           include_examples: bool = True,
+                           use_gemini: bool = True,
+                           use_thinking_model: bool = False) -> str:
         """
         Process uploaded transcript and transform it into a teaching transcript
         
         Args:
             file_obj: Uploaded PDF file
+            initial_prompt: Additional guiding instructions for the content generation
             target_duration: Target lecture duration in minutes
             include_examples: Whether to include practical examples
             use_gemini: Whether to use Gemini API instead of OpenAI
+            use_thinking_model: Requires use_gemini=True
             
         Returns:
             str: Generated teaching transcript
         """
         try:
-            # Initialize transformer with selected model
-            self.transformer = TranscriptTransformer(use_gemini=use_gemini)
+            # Force enable Gemini if thinking model is selected
+            if use_thinking_model:
+                use_gemini = True
+                
+            self.transformer = TranscriptTransformer(
+                use_gemini=use_gemini,
+                use_thinking_model=use_thinking_model
+            )
             
             # Extract text from PDF
             raw_text = self.pdf_processor.extract_text(file_obj.name)
             
-            # Transform to teaching transcript
+            # Transform to teaching transcript with user guidance
             lecture_transcript = self.transformer.transform_to_lecture(
-                raw_text,
+                text=raw_text,
                 target_duration=target_duration,
-                include_examples=include_examples
+                include_examples=include_examples,
+                initial_prompt=initial_prompt
             )
             
             return lecture_transcript
@@ -60,6 +71,11 @@ class TranscriptTransformerApp:
                     label="Upload Transcript (PDF)",
                     file_types=[".pdf"]
                 ),
+                gr.Textbox(
+                    label="Guiding Prompt (Optional)",
+                    lines=3,
+                    value=""
+                ),
                 gr.Slider(
                     minimum=30,
                     maximum=60,
@@ -72,7 +88,7 @@ class TranscriptTransformerApp:
                     value=True
                 ),
                 gr.Checkbox(
-                    label="Use Gemini API (instead of OpenAI)",
+                    label="Use Experimental Thinking Model (Gemini Only)",
                     value=True
                 )
             ],
@@ -83,7 +99,7 @@ class TranscriptTransformerApp:
             title="Transcript to Teaching Material Transformer",
             description="Transform conversational transcripts into structured teaching material",
             examples=[
-                [example_pdf, 30, True, True]
+                [example_pdf, "", 30, True, False]
             ],
             cache_examples=True
         )

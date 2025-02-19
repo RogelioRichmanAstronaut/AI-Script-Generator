@@ -19,13 +19,25 @@ class TranscriptTransformer:
     MAX_RETRIES = 3  # Maximum retries for content generation
     CHUNK_SIZE = 6000  # Target words per chunk
     LARGE_DEVIATION_THRESHOLD = 0.20  # 20% maximum deviation
+    MAX_TOKENS = 64000  # Nuevo límite absoluto basado en 64k tokens de salida
     
-    def __init__(self, use_gemini: bool = True):
+    def __init__(self, use_gemini: bool = True, use_thinking_model: bool = False):
         """Initialize the transformer with selected LLM client"""
         self.text_processor = TextProcessor()
         self.use_gemini = use_gemini
+        self.use_thinking_model = use_thinking_model
         
-        if use_gemini:
+        if use_thinking_model:
+            if not use_gemini:
+                raise ValueError("Thinking model requires use_gemini=True")
+                
+            logger.info("Initializing with Gemini Flash Thinking API")
+            self.openai_client = openai.OpenAI(
+                api_key=os.getenv('GEMINI_API_KEY'),
+                base_url="https://generativelanguage.googleapis.com/v1alpha"
+            )
+            self.model_name = "gemini-2.0-flash-thinking-exp-01-21"
+        elif use_gemini:
             logger.info("Initializing with Gemini API")
             self.openai_client = openai.OpenAI(
                 api_key=os.getenv('GEMINI_API_KEY'),
@@ -58,9 +70,10 @@ class TranscriptTransformer:
             )
             
     def transform_to_lecture(self, 
-                           text: str, 
-                           target_duration: int = 30,
-                           include_examples: bool = True) -> str:
+                             text: str,
+                             target_duration: int = 30,
+                             include_examples: bool = True,
+                             initial_prompt: Optional[str] = None) -> str:
         """
         Transform input text into a structured teaching transcript
         
@@ -68,6 +81,7 @@ class TranscriptTransformer:
             text: Input transcript text
             target_duration: Target lecture duration in minutes
             include_examples: Whether to include practical examples
+            initial_prompt: Additional user instructions to guide the generation
             
         Returns:
             str: Generated teaching transcript, regardless of word count validation
@@ -87,7 +101,11 @@ class TranscriptTransformer:
         logger.info(f"Target word count: {target_words} (min: {min_words}, max: {max_words})")
         
         # Generate detailed lecture structure with topics
-        structure_data = self._generate_detailed_structure(cleaned_text, target_duration)
+        structure_data = self._generate_detailed_structure(
+            text=cleaned_text,
+            target_duration=target_duration,
+            initial_prompt=initial_prompt
+        )
         logger.info("Detailed lecture structure generated")
         logger.info(f"Topics identified: {[t['title'] for t in structure_data['topics']]}")
         
@@ -109,7 +127,8 @@ class TranscriptTransformer:
                 cleaned_text,
                 section_words['intro'],
                 include_examples,
-                is_first=True
+                is_first=True,
+                initial_prompt=initial_prompt
             )
             intro_words = self.text_processor.count_words(intro)
             logger.info(f"Introduction generated: {intro_words} words")
@@ -130,7 +149,8 @@ class TranscriptTransformer:
                 cleaned_text,
                 section_words['main'],
                 include_examples,
-                context
+                context,
+                initial_prompt=initial_prompt
             )
             main_words = self.text_processor.count_words(main_content)
             logger.info(f"Main content generated: {main_words} words")
@@ -146,7 +166,8 @@ class TranscriptTransformer:
                 cleaned_text,
                 section_words['practical'],
                 include_examples,
-                context=context
+                context=context,
+                initial_prompt=initial_prompt
             )
             practical_words = self.text_processor.count_words(practical)
             logger.info(f"Practical section generated: {practical_words} words")
@@ -163,7 +184,8 @@ class TranscriptTransformer:
                 section_words['summary'],
                 include_examples,
                 is_last=True,
-                context=context
+                context=context,
+                initial_prompt=initial_prompt
             )
             summary_words = self.text_processor.count_words(summary)
             logger.info(f"Summary generated: {summary_words} words")
@@ -190,12 +212,18 @@ class TranscriptTransformer:
                 return full_content
             raise  # Re-raise only if we have no content at all
             
-    def _generate_detailed_structure(self, text: str, target_duration: int) -> Dict:
+    def _generate_detailed_structure(self,
+                                     text: str,
+                                     target_duration: int,
+                                     initial_prompt: Optional[str] = None) -> Dict:
         """Generate detailed lecture structure with topics and objectives"""
         logger.info("Generating detailed lecture structure")
         
+        user_instructions = f"\nAdditional user instructions:\n{initial_prompt}\n" if initial_prompt else ""
+        
         prompt = f"""
         You are an expert educator creating a detailed lecture outline.
+        {user_instructions}
         Analyze this transcript and create a structured JSON output with the following:
         
         1. Title of the lecture
@@ -233,17 +261,26 @@ class TranscriptTransformer:
         """
         
         try:
-            # First attempt with direct JSON generation
-            response = self.openai_client.chat.completions.create(
-                model=self.model_name,
-                messages=[
+            # Common parameters
+            params = {
+                "model": self.model_name,
+                "messages": [
                     {"role": "system", "content": "You are an expert educator. Output ONLY valid JSON, no other text."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.7,
-                max_tokens=2000
-            )
+                "temperature": 0.7,
+                "max_tokens": self.MAX_TOKENS if self.use_thinking_model else 4000
+            }
             
+            # Add thinking config if using experimental model
+            if self.use_thinking_model:
+                params["extra_body"] = {
+                    "thinking_config": {
+                        "include_thoughts": True
+                    }
+                }
+
+            response = self.openai_client.chat.completions.create(**params)
             content = response.choices[0].message.content.strip()
             logger.debug(f"Raw structure response: {content}")
             
@@ -310,7 +347,7 @@ class TranscriptTransformer:
             
             # Calculate minutes per topic
             main_time = int(target_duration * 0.7)  # 70% for main content
-            topic_minutes = main_time // len(topics)
+            topic_minutes = main_time // len(topics) if topics else main_time
             
             # Create fallback structure
             return {
@@ -361,13 +398,17 @@ class TranscriptTransformer:
                          include_examples: bool,
                          context: Dict = None,
                          is_first: bool = False,
-                         is_last: bool = False) -> str:
+                         is_last: bool = False,
+                         initial_prompt: Optional[str] = None) -> str:
         """Generate content for a specific section with coherence tracking"""
         logger.info(f"Generating {section_type} section (target: {target_words} words)")
+        
+        user_instructions = f"\nUser's guiding instructions:\n{initial_prompt}\n" if initial_prompt else ""
         
         # Base prompt with structure
         prompt = f"""
         You are an expert educator creating a detailed lecture transcript.
+        {user_instructions}
         Generate the {section_type} section with EXACTLY {target_words} words.
         
         Lecture Title: {structure_data['title']}
@@ -438,7 +479,7 @@ class TranscriptTransformer:
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
-            max_tokens=8000
+            max_tokens=self._calculate_max_tokens(section_type, target_words)
         )
         
         content = response.choices[0].message.content
@@ -447,17 +488,39 @@ class TranscriptTransformer:
         
         return content
         
+    def _calculate_max_tokens(self, section_type: str, target_words: int) -> int:
+        """Calculate appropriate max_tokens based on section and model"""
+        # 1 token ≈ 4 caracteres (1 palabra ≈ 1.33 tokens)
+        base_tokens = int(target_words * 1.5)  # Margen para formato
+        
+        if self.use_thinking_model:
+            # Permite hasta 64k tokens pero limita por sección
+            section_limits = {
+                'introduction': 8000,
+                'main': 32000,
+                'practical': 16000,
+                'summary': 8000
+            }
+            return min(base_tokens * 2, section_limits.get(section_type, 16000))
+        
+        # Límites para otros modelos
+        return min(base_tokens + 1000, self.MAX_TOKENS)
+        
     def _generate_main_content(self,
                              structure_data: Dict,
                              original_text: str,
                              target_words: int,
                              include_examples: bool,
-                             context: Dict) -> str:
+                             context: Dict,
+                             initial_prompt: Optional[str] = None) -> str:
         """Generate main content with topic progression"""
         logger.info(f"Generating main content (target: {target_words} words)")
         
         # Calculate words per topic based on their duration ratios
         total_duration = sum(t['duration_minutes'] for t in structure_data['topics'])
+        # Avoid division by zero
+        total_duration = total_duration if total_duration > 0 else 1
+        
         topic_words = {}
         
         for topic in structure_data['topics']:
@@ -474,8 +537,9 @@ class TranscriptTransformer:
             
             # Update context for topic
             context['current_topic'] = topic['title']
-            context['covered_topics'].append(topic['title'])
-            context['pending_topics'].remove(topic['title'])
+            if topic['title'] in context['pending_topics']:
+                context['covered_topics'].append(topic['title'])
+                context['pending_topics'].remove(topic['title'])
             context['key_terms'].update(topic['key_concepts'])
             
             # Generate topic content
@@ -485,7 +549,8 @@ class TranscriptTransformer:
                 original_text,
                 topic_target,
                 include_examples,
-                context=context
+                context=context,
+                initial_prompt=initial_prompt
             )
             
             topic_contents.append(topic_content)
