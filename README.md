@@ -17,6 +17,7 @@ AI LectureForge is an advanced AI system that converts PDF transcripts and conve
 - 🔄 Coherent topic organization
 - 🔌 Support for multiple AI providers (Gemini/OpenAI)
 - ⏱️ Time-marked sections for lecture pacing
+- 📝 **Optional guiding prompt** for personalized transcript generation
 
 ## Output Format
 
@@ -167,6 +168,7 @@ Our system uses a sophisticated multi-stage prompting approach:
    - Integration with Gemini API (primary)
    - OpenAI API support (alternative)
    - Structured prompt system for consistent output
+   - **New**: Optional guiding prompt support – users can now provide additional instructions to influence lecture transcript generation.
 
 3. **Output Generation**
    - Organized teaching materials
