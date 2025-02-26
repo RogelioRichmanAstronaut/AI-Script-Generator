@@ -1,13 +1,24 @@
+---
+title: AI_Script_Generator
+app_file: src/app.py
+sdk: gradio
+sdk_version: 5.13.1
+---
 # 🎓 AI Script Generator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+[![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/rogeliorichman/AI_Script_Generator)
 
 > Transform transcripts and PDFs into timed, structured teaching scripts using AI
 
 AI Script Generator is an advanced AI system that converts PDF transcripts, raw text, and conversational content into well-structured teaching scripts. It seamlessly processes inputs, extracting and analyzing the content to create organized, pedagogically sound scripts with time markers. Designed for educators, students, content creators, and anyone looking to transform information into clear explanations.
+
+## 🔗 Live Demo
+
+Try it out: [AI Script Generator on Hugging Face Spaces](https://huggingface.co/spaces/rogeliorichman/AI_Script_Generator)
 
 ## ✨ Features
 
