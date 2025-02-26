@@ -1,7 +1,8 @@
 import os
 import logging
 import json
-from typing import List, Dict, Optional
+import time
+from typing import List, Dict, Optional, Callable, Any
 import openai
 from src.utils.text_processor import TextProcessor
 
@@ -16,7 +17,9 @@ class WordCountError(Exception):
 class TranscriptTransformer:
     """Transforms conversational transcripts into teaching material using LLM"""
     
-    MAX_RETRIES = 3  # Maximum retries for content generation
+    MAX_RETRIES = 3  # Initial retries for content generation
+    EXTENDED_RETRIES = 3  # Additional retries with longer waits
+    EXTENDED_RETRY_DELAYS = [5, 10, 15]  # Wait times in seconds for extended retries
     CHUNK_SIZE = 6000  # Target words per chunk
     LARGE_DEVIATION_THRESHOLD = 0.20  # 20% maximum deviation
     MAX_TOKENS = 64000  # Nuevo límite absoluto basado en 64k tokens de salida
@@ -53,6 +56,49 @@ class TranscriptTransformer:
         
         # Target word counts
         self.words_per_minute = 130  # Average speaking rate
+        
+    def _api_call_with_enhanced_retries(self, call_func: Callable[[], Any]) -> Any:
+        """
+        Wrapper function for API calls with enhanced retry logic
+        
+        Args:
+            call_func: Function that makes the actual API call
+            
+        Returns:
+            The result of the successful API call
+            
+        Raises:
+            Exception: If all retries fail
+        """
+        # Initial retries (already handled by openai client)
+        try:
+            return call_func()
+        except Exception as e:
+            error_str = str(e)
+            
+            # Check if it's a quota error (429)
+            if "429" in error_str or "Too Many Requests" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                logger.warning(f"Quota error detected: {error_str}")
+                logger.info(f"Starting extended retries with longer waits...")
+                
+                # Extended retries with longer waits
+                for i in range(self.EXTENDED_RETRIES):
+                    wait_time = self.EXTENDED_RETRY_DELAYS[i]
+                    logger.info(f"Extended retry {i+1}/{self.EXTENDED_RETRIES}: Waiting {wait_time} seconds before retry")
+                    time.sleep(wait_time)
+                    
+                    try:
+                        return call_func()
+                    except Exception as retry_error:
+                        # If last retry, re-raise
+                        if i == self.EXTENDED_RETRIES - 1:
+                            logger.error(f"All extended retries failed: {str(retry_error)}")
+                            raise
+                        # Otherwise log and continue to next retry
+                        logger.warning(f"Extended retry {i+1} failed: {str(retry_error)}")
+            else:
+                # Not a quota error, re-raise
+                raise
         
     def _validate_word_count(self, total_words: int, target_words: int, min_words: int, max_words: int) -> None:
         """Validate word count with flexible thresholds and log warnings/errors"""
@@ -280,7 +326,11 @@ class TranscriptTransformer:
                     }
                 }
 
-            response = self.openai_client.chat.completions.create(**params)
+            # Use the enhanced retry wrapper for API call
+            def api_call():
+                return self.openai_client.chat.completions.create(**params)
+                
+            response = self._api_call_with_enhanced_retries(api_call)
             content = response.choices[0].message.content.strip()
             logger.debug(f"Raw structure response: {content}")
             
@@ -308,86 +358,94 @@ class TranscriptTransformer:
                 
         except Exception as e:
             logger.error(f"Error generating structure: {str(e)}")
+            # Fallback in case of any error
             return self._generate_fallback_structure(text, target_duration)
             
     def _generate_fallback_structure(self, text: str, target_duration: int) -> Dict:
-        """Generate a basic fallback structure when JSON parsing fails"""
+        """Generate a simplified fallback structure in case of parsing failures"""
         logger.info("Generating fallback structure")
         
-        # Generate a simpler structure prompt
-        prompt = f"""
-        Analyze this text and provide:
-        1. A title (one line)
-        2. Three learning objectives (one per line)
-        3. Three main topics (one per line)
-        4. Three key terms (one per line)
-        
-        Text: {text[:1000]}
-        """
+        params = {
+            "model": self.model_name,
+            "messages": [
+                {"role": "system", "content": "You are an expert educator. Output ONLY valid JSON, no other text."},
+                {"role": "user", "content": f"""
+                Create a simplified lecture outline based on this transcript.
+                Format as JSON with: 
+                - title
+                - 3 learning objectives
+                - 2 main topics with title, key concepts, subtopics
+                - 2 practical applications
+                - 3 key terms
+                
+                Target duration: {target_duration} minutes
+                
+                Transcript excerpt:
+                {text[:2000]}
+                """}
+            ],
+            "temperature": 0.5,
+            "max_tokens": 2000
+        }
         
         try:
-            response = self.openai_client.chat.completions.create(
-                model=self.model_name,
-                messages=[
-                    {"role": "system", "content": "You are an expert educator. Provide concise, line-by-line responses."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.7,
-                max_tokens=1000
-            )
+            # Use the enhanced retry wrapper for API call
+            def api_call():
+                return self.openai_client.chat.completions.create(**params)
+                
+            response = self._api_call_with_enhanced_retries(api_call)
+            content = response.choices[0].message.content.strip()
             
-            lines = response.choices[0].message.content.strip().split('\n')
-            lines = [line.strip() for line in lines if line.strip()]
-            
-            # Extract components from lines
-            title = lines[0] if lines else "Lecture"
-            objectives = [obj for obj in lines[1:4] if obj][:3]
-            topics = [topic for topic in lines[4:7] if topic][:3]
-            terms = [term for term in lines[7:10] if term][:3]
-            
-            # Calculate minutes per topic
-            main_time = int(target_duration * 0.7)  # 70% for main content
-            topic_minutes = main_time // len(topics) if topics else main_time
-            
-            # Create fallback structure
-            return {
-                "title": title,
-                "learning_objectives": objectives,
-                "topics": [
-                    {
-                        "title": topic,
-                        "key_concepts": [topic],  # Use topic as key concept
-                        "subtopics": ["Overview", "Details", "Examples"],
-                        "duration_minutes": topic_minutes,
-                        "objective_links": [1]  # Link to first objective
-                    }
-                    for topic in topics
-                ],
-                "practical_applications": [
-                    "Real-world application example",
-                    "Interactive exercise",
-                    "Case study"
-                ],
-                "key_terms": terms
-            }
-            
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                # Last resort fallback if everything fails
+                return {
+                    "title": "Lecture on Transcript Topic",
+                    "learning_objectives": ["Understand key concepts", "Apply knowledge", "Evaluate outcomes"],
+                    "topics": [
+                        {
+                            "title": "Main Topic 1",
+                            "key_concepts": ["Concept 1", "Concept 2"],
+                            "subtopics": ["Subtopic 1", "Subtopic 2"],
+                            "duration_minutes": target_duration // 2,
+                            "objective_links": [1, 2]
+                        },
+                        {
+                            "title": "Main Topic 2",
+                            "key_concepts": ["Concept 3", "Concept 4"],
+                            "subtopics": ["Subtopic 3", "Subtopic 4"],
+                            "duration_minutes": target_duration // 2,
+                            "objective_links": [2, 3]
+                        }
+                    ],
+                    "practical_applications": ["Application 1", "Application 2"],
+                    "key_terms": ["Term 1", "Term 2", "Term 3"]
+                }
         except Exception as e:
             logger.error(f"Error generating fallback structure: {str(e)}")
-            # Return minimal valid structure
+            # Hardcoded last resort fallback
             return {
-                "title": "Lecture Overview",
-                "learning_objectives": ["Understand key concepts", "Apply knowledge", "Analyze examples"],
+                "title": "Lecture on Transcript Topic",
+                "learning_objectives": ["Understand key concepts", "Apply knowledge", "Evaluate outcomes"],
                 "topics": [
                     {
-                        "title": "Main Topic",
-                        "key_concepts": ["Core concept"],
-                        "subtopics": ["Overview"],
+                        "title": "Main Topic 1",
+                        "key_concepts": ["Concept 1", "Concept 2"],
+                        "subtopics": ["Subtopic 1", "Subtopic 2"],
                         "duration_minutes": target_duration // 2,
-                        "objective_links": [1]
+                        "objective_links": [1, 2]
+                    },
+                    {
+                        "title": "Main Topic 2",
+                        "key_concepts": ["Concept 3", "Concept 4"],
+                        "subtopics": ["Subtopic 3", "Subtopic 4"],
+                        "duration_minutes": target_duration // 2,
+                        "objective_links": [2, 3]
                     }
                 ],
-                "practical_applications": ["Practical example"],
-                "key_terms": ["Key term"]
+                "practical_applications": ["Application 1", "Application 2"],
+                "key_terms": ["Term 1", "Term 2", "Term 3"]
             }
         
     def _generate_section(self,
@@ -400,24 +458,40 @@ class TranscriptTransformer:
                          is_first: bool = False,
                          is_last: bool = False,
                          initial_prompt: Optional[str] = None) -> str:
-        """Generate content for a specific section with coherence tracking"""
+        """Generate a specific section of the lecture"""
         logger.info(f"Generating {section_type} section (target: {target_words} words)")
         
-        user_instructions = f"\nUser's guiding instructions:\n{initial_prompt}\n" if initial_prompt else ""
+        # Calculate timing markers
+        if section_type == 'introduction':
+            time_marker = '[00:00]'
+        elif section_type == 'summary':
+            duration_mins = sum(topic.get('duration_minutes', 5) for topic in structure_data['topics'])
+            # Asegurar que duration_mins es un entero y nunca menor a 5
+            adjusted_mins = max(5, int(duration_mins - 5))
+            time_marker = f'[{adjusted_mins:02d}:00]'
+        else:
+            # For other sections, use appropriate time markers
+            time_marker = '[XX:XX]'  # Will be replaced within the prompt
         
-        # Base prompt with structure
+        user_instructions = f"\nAdditional user instructions:\n{initial_prompt}\n" if initial_prompt else ""
+        
+        # Base prompt with context-specific formatting
         prompt = f"""
-        You are an expert educator creating a detailed lecture transcript.
+        You are creating a {section_type} section for a {time_marker} teaching lecture on "{structure_data['title']}".
         {user_instructions}
-        Generate the {section_type} section with EXACTLY {target_words} words.
+        Target word count: {target_words} words (very important)
         
-        Lecture Title: {structure_data['title']}
-        Learning Objectives: {', '.join(structure_data['learning_objectives'])}
+        Learning objectives:
+        {', '.join(structure_data['learning_objectives'])}
         
-        Current section purpose:
+        Key terms:
+        {', '.join(structure_data['key_terms'])}
+        
+        Original source:
+        {original_text[:500]}...
         """
         
-        # Add section-specific guidance
+        # Section-specific instructions
         if section_type == 'introduction':
             prompt += """
             - Start with an engaging hook
@@ -427,66 +501,110 @@ class TranscriptTransformer:
             """
         elif section_type == 'main':
             prompt += f"""
-            - Cover these topics: {[t['title'] for t in structure_data['topics']]}
-            - Build progressively on concepts
-            - Include clear transitions
-            - Reference previous concepts
+            Discuss one main topic in depth.
+            
+            Topic: {context['current_topic']['title']}
+            Key concepts: {', '.join(context['current_topic']['key_concepts'])}
+            Subtopics: {', '.join(context['current_topic']['subtopics'])}
+            
+            - Start with appropriate time marker
+            - Explain key concepts clearly
+            - Include real-world examples
+            - Connect to learning objectives
+            - Use appropriate time markers within the section
             """
         elif section_type == 'practical':
-            prompt += """
-            - Apply concepts to real-world scenarios
-            - Connect to previous topics
-            - Include interactive elements
-            - Reinforce key learning points
+            prompt += f"""
+            Create a practical applications section with:
+            
+            - Start with appropriate time marker
+            - 2-3 practical examples or case studies
+            - Clear connections to the main topics
+            - Interactive elements (questions, exercises)
+            
+            Practical applications to cover:
+            {', '.join(structure_data['practical_applications'])}
             """
         elif section_type == 'summary':
             prompt += """
-            - Reinforce key takeaways
-            - Connect back to objectives
-            - Provide next steps
-            - End with a strong conclusion
-            """
+            Create a concise summary:
             
-        # Add context if available
+            - Start with appropriate time marker
+            - Reinforce key learning points
+            - Brief recap of main topics
+            - Call to action or follow-up suggestions
+            """
+        
+        # Context-specific content
         if context:
             prompt += f"""
             
-            Context:
-            - Covered topics: {', '.join(context['covered_topics'])}
-            - Pending topics: {', '.join(context['pending_topics'])}
-            - Key terms used: {', '.join(context['key_terms'])}
-            - Recent narrative: {context['current_narrative']}
+            Previously covered topics:
+            {', '.join(context['covered_topics'])}
+            
+            Pending topics:
+            {', '.join(context['pending_topics'])}
+            
+            Recent narrative context:
+            {context['current_narrative']}
+            """
+        
+        # First/last section specific instructions
+        if is_first:
+            prompt += """
+            
+            This is the FIRST section of the lecture. Make it engaging and set the tone.
+            """
+        elif is_last:
+            prompt += """
+            
+            This is the FINAL section of the lecture. Ensure proper closure and reinforcement.
             """
             
-        # Add requirements
-        prompt += f"""
-        
-        Requirements:
-        1. STRICT word count: Generate EXACTLY {target_words} words
-        2. Include practical examples: {include_examples}
-        3. Use clear transitions
-        4. Include engagement points
-        5. Use time markers [MM:SS]
-        6. Reference specific content from transcript
-        7. Maintain narrative flow
-        8. Use key terms consistently
-        """
-        
-        response = self.openai_client.chat.completions.create(
-            model=self.model_name,
-            messages=[
-                {"role": "system", "content": "You are an expert educator creating a coherent lecture transcript."},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=self._calculate_max_tokens(section_type, target_words)
-        )
-        
-        content = response.choices[0].message.content
-        word_count = self.text_processor.count_words(content)
-        logger.info(f"Section generated: {word_count} words")
-        
-        return content
+        # Add section-specific time markers for formatted output
+        if section_type != 'introduction':
+            prompt += """
+            
+            IMPORTANT: Include appropriate time markers [MM:SS] throughout the section.
+            """
+            
+        try:
+            # Prepare API call parameters
+            params = {
+                "model": self.model_name,
+                "messages": [
+                    {"role": "system", "content": "You are an expert educator creating a teaching script."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.7,
+                "max_tokens": self._calculate_max_tokens(section_type, target_words)
+            }
+            
+            # Add thinking config if using experimental model
+            if self.use_thinking_model:
+                params["extra_body"] = {
+                    "thinking_config": {
+                        "include_thoughts": True
+                    }
+                }
+
+            # Use the enhanced retry wrapper for API call
+            def api_call():
+                return self.openai_client.chat.completions.create(**params)
+                
+            response = self._api_call_with_enhanced_retries(api_call)
+            content = response.choices[0].message.content.strip()
+            
+            # Validate output length
+            content_words = self.text_processor.count_words(content)
+            logger.info(f"Section generated: {content_words} words")
+            
+            return content
+            
+        except Exception as e:
+            logger.error(f"Error during content generation: {str(e)}")
+            # Provide a minimal fallback content to avoid complete failure
+            return f"{time_marker} {section_type.capitalize()} (Error during generation)\n\nWe apologize, but there was an error generating this section."
         
     def _calculate_max_tokens(self, section_type: str, target_words: int) -> int:
         """Calculate appropriate max_tokens based on section and model"""
@@ -536,7 +654,7 @@ class TranscriptTransformer:
             topic_target = topic_words[topic['title']]
             
             # Update context for topic
-            context['current_topic'] = topic['title']
+            context['current_topic'] = topic
             if topic['title'] in context['pending_topics']:
                 context['covered_topics'].append(topic['title'])
                 context['pending_topics'].remove(topic['title'])

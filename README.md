@@ -28,6 +28,8 @@ Try it out: [AI Script Generator on Hugging Face Spaces](https://huggingface.co/
 - 🔄 Coherent topic organization
 - 🔌 Support for multiple AI providers (Gemini/OpenAI)
 - ⏱️ Time-marked sections for pacing
+- 🌐 Multilingual interface (English/Spanish) with flag selector
+- 🌍 Generation in ANY language through the guiding prompt (not limited to UI languages)
 
 ## Output Format
 
@@ -225,8 +227,16 @@ Project Link: [https://github.com/RogelioRichmanAstronaut/AI-Script-Generator](h
 - [ ] Support for multiple output formats (PDF, PPTX)
 - [ ] Interactive elements generation
 - [ ] Custom templating system
-- [ ] Multi-language support
+- [ ] Copy to clipboard button for generated content
+- [x] Multilingual capabilities
+  - [x] Content generation in any language via guiding prompt
+  - [x] UI language support
+    - [x] English
+    - [x] Spanish
+    - [ ] French
+    - [ ] German
 - [ ] Integration with LMS platforms
+- [x] Timestamp toggle - ability to show/hide time markers in the output text
 
 ---
 
