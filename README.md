@@ -240,4 +240,4 @@ Project Link: [https://github.com/RogelioRichmanAstronaut/AI-Script-Generator](h
 
 ---
 
-<p align="center">Made with ❤️ for educators, students, and communicators everywhere</p> 
+<p align="center">Made with ❤️ for educators, students, and communicators everywhere</p> # Testing GitHub Actions workflow
