@@ -13,7 +13,9 @@ class TranscriptTransformerApp:
         self.text_processor = TextProcessor()
 
     def process_transcript(self, 
-                           file_obj: gr.File,
+                           input_type: str,
+                           file_obj: gr.File = None,
+                           raw_text_input: str = "",
                            initial_prompt: str = "",
                            target_duration: int = 30,
                            include_examples: bool = True,
@@ -23,7 +25,9 @@ class TranscriptTransformerApp:
         Process uploaded transcript and transform it into a teaching transcript
         
         Args:
-            file_obj: Uploaded PDF file
+            input_type: Type of input (PDF or Raw Text)
+            file_obj: Uploaded PDF file (if input_type is PDF)
+            raw_text_input: Raw text input (if input_type is Raw Text)
             initial_prompt: Additional guiding instructions for the content generation
             target_duration: Target lecture duration in minutes
             include_examples: Whether to include practical examples
@@ -43,8 +47,15 @@ class TranscriptTransformerApp:
                 use_thinking_model=use_thinking_model
             )
             
-            # Extract text from PDF
-            raw_text = self.pdf_processor.extract_text(file_obj.name)
+            # Get text based on input type
+            if input_type == "PDF":
+                if file_obj is None:
+                    return "Error: No PDF file uploaded"
+                raw_text = self.pdf_processor.extract_text(file_obj.name)
+            else:  # Raw Text
+                if not raw_text_input.strip():
+                    return "Error: No text provided"
+                raw_text = raw_text_input
             
             # Transform to teaching transcript with user guidance
             lecture_transcript = self.transformer.transform_to_lecture(
@@ -64,45 +75,100 @@ class TranscriptTransformerApp:
         # Get the path to the example PDF
         example_pdf = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "sample2.pdf")
         
-        interface = gr.Interface(
-            fn=self.process_transcript,
-            inputs=[
-                gr.File(
-                    label="Upload Transcript (PDF)",
-                    file_types=[".pdf"]
-                ),
-                gr.Textbox(
+        with gr.Blocks(title="AI Script Generator") as interface:
+            gr.Markdown("# AI Script Generator")
+            gr.Markdown("Transform transcripts and PDFs into timed, structured teaching scripts using AI")
+            
+            with gr.Row():
+                input_type = gr.Radio(
+                    choices=["PDF", "Raw Text"],
+                    label="Input Type",
+                    value="PDF"
+                )
+            
+            with gr.Row():
+                with gr.Column(visible=True) as pdf_column:
+                    file_input = gr.File(
+                        label="Upload Transcript (PDF)",
+                        file_types=[".pdf"]
+                    )
+                
+                with gr.Column(visible=False) as text_column:
+                    text_input = gr.Textbox(
+                        label="Paste Transcript Text",
+                        lines=10,
+                        placeholder="Paste your transcript text here..."
+                    )
+            
+            with gr.Row():
+                initial_prompt = gr.Textbox(
                     label="Guiding Prompt (Optional)",
                     lines=3,
-                    value=""
-                ),
-                gr.Slider(
-                    minimum=30,
-                    maximum=60,
+                    value="",
+                    placeholder="Additional instructions to customize the output. Examples: 'Use a more informal tone', 'Focus only on section X', 'Generate the content in Spanish', 'Include more practical programming examples', etc.",
+                    info="The Guiding Prompt allows you to provide specific instructions to modify the generated content, like output/desired LANGUAGE. You can use it to change the tone, style, focus ONLY on specific sections of the text, specify the output language (e.g., 'Generate in Spanish/French/German'), or give any other instruction that helps personalize the final result."
+                )
+            
+            with gr.Row():
+                target_duration = gr.Number(
+                    label="Target Lecture Duration (minutes)",
                     value=30,
-                    step=15,
-                    label="Target Lecture Duration (minutes)"
-                ),
-                gr.Checkbox(
+                    minimum=2,
+                    maximum=60,
+                    step=1
+                )
+                
+                include_examples = gr.Checkbox(
                     label="Include Practical Examples",
                     value=True
-                ),
-                gr.Checkbox(
+                )
+                
+                use_thinking_model = gr.Checkbox(
                     label="Use Experimental Thinking Model (Gemini Only)",
                     value=True
                 )
-            ],
-            outputs=gr.Textbox(
+            
+            with gr.Row():
+                submit_btn = gr.Button("Transform Transcript")
+            
+            output = gr.Textbox(
                 label="Generated Teaching Transcript",
                 lines=25
-            ),
-            title="Transcript to Teaching Material Transformer",
-            description="Transform conversational transcripts into structured teaching material",
-            examples=[
-                [example_pdf, "", 30, True, False]
-            ],
-            cache_examples=True
-        )
+            )
+            
+            # Handle visibility of input columns based on selection
+            def update_input_visibility(choice):
+                return [
+                    gr.update(visible=(choice == "PDF")),  # pdf_column
+                    gr.update(visible=(choice == "Raw Text"))  # text_column
+                ]
+            
+            input_type.change(
+                fn=update_input_visibility,
+                inputs=input_type,
+                outputs=[pdf_column, text_column]
+            )
+            
+            # Set up submission logic
+            submit_btn.click(
+                fn=self.process_transcript,
+                inputs=[
+                    input_type,
+                    file_input,
+                    text_input,
+                    initial_prompt,
+                    target_duration,
+                    include_examples,
+                    use_thinking_model
+                ],
+                outputs=output
+            )
+            
+            # Example for PDF input
+            gr.Examples(
+                examples=[[example_pdf, "", "", 30, True, True]],
+                inputs=[file_input, text_input, initial_prompt, target_duration, include_examples, use_thinking_model]
+            )
         
         interface.launch(share=True)
 

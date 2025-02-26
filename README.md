@@ -1,32 +1,30 @@
-# 🎓 AI LectureForge
+# 🎓 AI Script Generator
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-> Transform PDF transcripts and conversations into structured teaching materials using AI
+> Transform transcripts and PDFs into timed, structured teaching scripts using AI
 
-AI LectureForge is an advanced AI system that converts PDF transcripts and conversational content into well-structured teaching materials. It seamlessly processes PDF inputs, extracting and analyzing the content to create organized, pedagogically sound lecture materials. Designed for educators, content creators, and anyone looking to transform knowledge sharing.
+AI Script Generator is an advanced AI system that converts PDF transcripts, raw text, and conversational content into well-structured teaching scripts. It seamlessly processes inputs, extracting and analyzing the content to create organized, pedagogically sound scripts with time markers. Designed for educators, students, content creators, and anyone looking to transform information into clear explanations.
 
 ## ✨ Features
 
-- 🤖 PDF transcript processing and text extraction
+- 🤖 PDF transcript and raw text processing
 - 🤖 AI-powered content transformation
-- 📚 Structured teaching material generation
+- 📚 Structured teaching script generation
 - 🔄 Coherent topic organization
 - 🔌 Support for multiple AI providers (Gemini/OpenAI)
-- ⏱️ Time-marked sections for lecture pacing
-- 📝 **Optional guiding prompt** for personalized transcript generation
+- ⏱️ Time-marked sections for pacing
 
 ## Output Format
 
-The generated teaching materials follow a structured format:
+The generated scripts follow a structured format:
 
 ### Time Markers
-- Each section includes time markers (e.g., `[11:45]`) to help instructors pace their lectures
-- 30-minute version: Sections are timed appropriately for a condensed lecture
-- 60-minute version: Expanded content with more detailed timing
+- Each section includes time markers (e.g., `[11:45]`) to help pace delivery
+- Customizable duration: From as short as 2 minutes to 60 minutes, with timing adjusted accordingly
 
 ### Structure
 - Introduction with learning objectives
@@ -62,8 +60,8 @@ For example:
 
 ```bash
 # Clone the repository
-git clone https://github.com/RogelioRichmanAstronaut/AI-LectureForge.git
-cd AI-LectureForge
+git clone https://github.com/RogelioRichmanAstronaut/AI-Script-Generator.git
+cd AI-Script-Generator
 
 # Create and activate virtual environment
 python -m venv venv
@@ -104,12 +102,12 @@ Our system uses a sophisticated multi-stage prompting approach:
    - Key topic and concept extraction from each segment
 
 2. **Structure Generation**
-   - Time-based sectioning (30/60 minute versions)
+   - Time-based sectioning (customizable from 2-60 minutes)
    - Educational flow design with clear progression
    - Integration of pedagogical elements (examples, exercises, questions)
 
 3. **Educational Enhancement**
-   - Transformation of casual content into formal teaching material
+   - Transformation of casual content into formal teaching script
    - Addition of practical examples and case studies
    - Integration of interaction points and reflection questions
    - Time markers for pacing guidance
@@ -130,10 +128,10 @@ Our system uses a sophisticated multi-stage prompting approach:
 2. **Educational Structure**
    - Challenge: Converting conversational text to teaching format
    - Solution: 
-     - Structured templating system for different time formats (30/60 min)
+     - Structured templating system for different time formats (2-60 min)
      - Integration of pedagogical elements (examples, exercises)
      - Time-based sectioning with clear progression
-   - Result: Coherent, time-marked teaching materials with interactive elements
+   - Result: Coherent, time-marked teaching scripts with interactive elements
 
 3. **Content Coherence**
    - Challenge: Maintaining narrative flow across chunked content
@@ -155,23 +153,24 @@ Our system uses a sophisticated multi-stage prompting approach:
 ### Core Components
 
 1. **PDF Processing**: Extracts and cleans text from PDF transcripts
-2. **Content Analysis**: Uses AI to understand and structure the content
-3. **Teaching Material Generation**: Transforms content into educational format
+2. **Text Processing**: Handles direct text input and cleans/structures it
+3. **Content Analysis**: Uses AI to understand and structure the content
+4. **Script Generation**: Transforms content into educational format
 
 ### Implementation Details
 
-1. **PDF Handling**
+1. **PDF/Text Handling**
    - Robust PDF text extraction
+   - Raw text input processing
    - Clean-up of extracted content
 
 2. **AI Processing**
    - Integration with Gemini API (primary)
    - OpenAI API support (alternative)
    - Structured prompt system for consistent output
-   - **New**: Optional guiding prompt support – users can now provide additional instructions to influence lecture transcript generation.
 
 3. **Output Generation**
-   - Organized teaching materials
+   - Organized teaching scripts
    - Clear section structure
    - Learning points and key concepts
 
@@ -179,7 +178,7 @@ Our system uses a sophisticated multi-stage prompting approach:
 
 The system follows a modular design:
 
-- 📄 PDF processing module
+- 📄 PDF/text processing module
 - 🔍 Text analysis component
 - 🤖 AI integration layer
 - 📝 Output formatting system
@@ -202,14 +201,13 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 🌟 Acknowledgments
 
-- Thanks to all contributors who have helped shape LectureForge
+- Thanks to all contributors who have helped shape AI Script Generator
 - Special thanks to the Gemini and OpenAI teams for their amazing APIs
-- Inspired by educators worldwide who make learning engaging
+- Inspired by educators and communicators worldwide who make learning engaging
 
 ## 📧 Contact
 
-
-Project Link: [https://github.com/RogelioRichmanAstronaut/AI-LectureForge](https://github.com/RogelioRichmanAstronaut/AI-LectureForge) 
+Project Link: [https://github.com/RogelioRichmanAstronaut/AI-Script-Generator](https://github.com/RogelioRichmanAstronaut/AI-Script-Generator) 
 
 ## 🔮 Roadmap
 
@@ -221,4 +219,4 @@ Project Link: [https://github.com/RogelioRichmanAstronaut/AI-LectureForge](https
 
 ---
 
-<p align="center">Made with ❤️ for educators everywhere</p> 
+<p align="center">Made with ❤️ for educators, students, and communicators everywhere</p> 
