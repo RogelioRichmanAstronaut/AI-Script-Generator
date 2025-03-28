@@ -1,10 +1,10 @@
 ---
-title: AI_Script_Generator
+title: AI_Agent_Script_Builder
 app_file: src/app.py
 sdk: gradio
 sdk_version: 5.13.1
 ---
-# 🎓 AI Script Generator
+# 🎓 AI Agent Script Builder
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
@@ -12,13 +12,31 @@ sdk_version: 5.13.1
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 [![Hugging Face Spaces](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Spaces-blue)](https://huggingface.co/spaces/rogeliorichman/AI_Script_Generator)
 
-> Transform transcripts and PDFs into timed, structured teaching scripts using AI
+> Transform transcripts and PDFs into timed, structured teaching scripts using an autonomous AI agent
 
-AI Script Generator is an advanced AI system that converts PDF transcripts, raw text, and conversational content into well-structured teaching scripts. It seamlessly processes inputs, extracting and analyzing the content to create organized, pedagogically sound scripts with time markers. Designed for educators, students, content creators, and anyone looking to transform information into clear explanations.
+AI Agent Script Builder is an advanced autonomous agent that converts PDF transcripts, raw text, and conversational content into well-structured teaching scripts. It seamlessly processes inputs, extracting and analyzing the content to create organized, pedagogically scripts with time markers. Designed for educators, students, content creators, and anyone looking to transform information into clear explanations.
+
+## 🤖 AI Agent Architecture
+
+AI Agent Script Builder functions as a **specialized AI agent** that autonomously processes and transforms content with minimal human intervention:
+
+### Agent Capabilities
+- **Autonomous Processing**: Independently analyzes content, determines structure, and generates complete scripts
+- **Decision Making**: Intelligently allocates time, prioritizes topics, and structures content based on input analysis
+- **Contextual Adaptation**: Adjusts to different languages, styles, and requirements through guiding prompts
+- **Obstacle Management**: Implements progressive retry strategies when facing API quota limitations
+- **Goal-Oriented Operation**: Consistently works toward transforming unstructured information into coherent educational scripts
+
+### Agent Limitations
+- **Domain Specificity**: Specialized for educational script generation rather than general-purpose tasks
+- **External API Dependency**: Relies on third-party language models (Gemini/OpenAI) for core reasoning
+- **No Continuous Learning**: Does not improve through experience or previous interactions
+
+This architecture enables the system to function autonomously within its specialized domain while maintaining high-quality output and resilience to common obstacles.
 
 ## 🔗 Live Demo
 
-Try it out: [AI Script Generator on Hugging Face Spaces](https://huggingface.co/spaces/rogeliorichman/AI_Script_Generator)
+Try it out: [AI Agent Script Builder on Hugging Face Spaces](https://huggingface.co/spaces/rogeliorichman/AI_Script_Generator)
 
 ## ✨ Features
 
@@ -30,6 +48,8 @@ Try it out: [AI Script Generator on Hugging Face Spaces](https://huggingface.co/
 - ⏱️ Time-marked sections for pacing
 - 🌐 Multilingual interface (English/Spanish) with flag selector
 - 🌍 Generation in ANY language through the guiding prompt (not limited to UI languages)
+- 🧠 Autonomous decision-making for content organization and pacing
+- 🛡️ Self-healing capabilities with progressive retry strategies for API limitations
 
 ## Output Format
 
@@ -189,12 +209,15 @@ Our system uses a sophisticated multi-stage prompting approach:
 
 ### Architecture
 
-The system follows a modular design:
+The system follows a modular agent-based design:
 
-- 📄 PDF/text processing module
-- 🔍 Text analysis component
-- 🤖 AI integration layer
-- 📝 Output formatting system
+- 📄 PDF/text processing module (Perception)
+- 🔍 Text analysis component (Cognition)
+- 🤖 AI integration layer (Decision-making)
+- 📝 Output formatting system (Action)
+- 🔄 Error handling system (Self-correction)
+
+This agent architecture enables autonomous processing from raw input to final output with built-in adaptation to errors and limitations.
 
 ## 🤝 Contributing
 
@@ -214,7 +237,6 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## 🌟 Acknowledgments
 
-- Thanks to all contributors who have helped shape AI Script Generator
 - Special thanks to the Gemini and OpenAI teams for their amazing APIs
 - Inspired by educators and communicators worldwide who make learning engaging
 
@@ -240,4 +262,4 @@ Project Link: [https://github.com/RogelioRichmanAstronaut/AI-Script-Generator](h
 
 ---
 
-<p align="center">Made with ❤️ for educators, students, and communicators everywhere</p> # Testing GitHub Actions workflow
+<p align="center">Made with ❤️ for educators, students, and communicators everywhere</p> 
