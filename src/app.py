@@ -72,8 +72,6 @@ class TranscriptTransformerApp:
         self.last_generated_content = ""  # Store the last generated content
         self.content_with_timestamps = ""  # Store content with timestamps
         self.content_without_timestamps = ""  # Store content without timestamps
-        # Initialize transformer here, assuming Gemini is the primary choice now
-        self.transformer = TranscriptTransformer(use_gemini=True) 
 
     def process_transcript(self, 
                            language: str,
@@ -82,7 +80,9 @@ class TranscriptTransformerApp:
                            raw_text_input: str = "",
                            initial_prompt: str = "",
                            target_duration: int = 30,
-                           include_examples: bool = True) -> str:
+                           include_examples: bool = True,
+                           use_gemini: bool = True,
+                           use_thinking_model: bool = False) -> str:
         """
         Process uploaded transcript and transform it into a teaching transcript
         
@@ -94,11 +94,22 @@ class TranscriptTransformerApp:
             initial_prompt: Additional guiding instructions for the content generation
             target_duration: Target lecture duration in minutes
             include_examples: Whether to include practical examples
+            use_gemini: Whether to use Gemini API instead of OpenAI
+            use_thinking_model: Requires use_gemini=True
             
         Returns:
             str: Generated teaching transcript
         """
         try:
+            # Force enable Gemini if thinking model is selected
+            if use_thinking_model:
+                use_gemini = True
+                
+            self.transformer = TranscriptTransformer(
+                use_gemini=use_gemini,
+                use_thinking_model=use_thinking_model
+            )
+            
             # Get text based on input type
             if input_type == TRANSLATIONS[language]["input_type_options"][0]:  # PDF
                 if file_obj is None:
@@ -186,26 +197,20 @@ class TranscriptTransformerApp:
         # Get the path to the example PDF
         example_pdf = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "sample2.pdf")
         
-        # Map language dropdown values to language codes - Moved here
-        lang_map = {
-            "🇺🇸 English": "en",
-            "🇪🇸 Español": "es"
-        }
-
         with gr.Blocks(title=TRANSLATIONS["en"]["title"]) as interface:
-            # Language selector dropdown
+            # Header with title and language selector side by side
             with gr.Row():
-                language_selector = gr.Dropdown(
-                    choices=list(lang_map.keys()),
-                    value="🇺🇸 English",
-                    label=TRANSLATIONS["en"]["language_selector"],
-                    elem_id="language-selector",
-                    interactive=True
-                )
+                with gr.Column(scale=4):
+                    title_md = gr.Markdown("# " + TRANSLATIONS["en"]["title"])
+                with gr.Column(scale=1):
+                    language_selector = gr.Dropdown(
+                        choices=["🇺🇸 English", "🇪🇸 Español"],
+                        value="🇺🇸 English",
+                        label=TRANSLATIONS["en"]["language_selector"],
+                        elem_id="language-selector",
+                        interactive=True
+                    )
             
-            # Title
-            title_md = gr.Markdown("# " + TRANSLATIONS["en"]["title"])
-
             # Subtitle
             subtitle_md = gr.Markdown(TRANSLATIONS["en"]["subtitle"])
             
@@ -214,20 +219,18 @@ class TranscriptTransformerApp:
                 input_type = gr.Radio(
                     choices=TRANSLATIONS["en"]["input_type_options"],
                     label=TRANSLATIONS["en"]["input_type_label"],
-                    value=TRANSLATIONS["en"]["input_type_options"][1] # Default to Raw Text
+                    value=TRANSLATIONS["en"]["input_type_options"][0]
                 )
             
             # File/text input columns
             with gr.Row():
-                # PDF input column starts visible=False as Raw Text is default
-                with gr.Column(visible=False) as pdf_column: 
+                with gr.Column(visible=True) as pdf_column:
                     file_input = gr.File(
                         label=TRANSLATIONS["en"]["upload_pdf_label"],
                         file_types=[".pdf"]
                     )
                 
-                # Text input column starts visible=True as Raw Text is default
-                with gr.Column(visible=True) as text_column: 
+                with gr.Column(visible=False) as text_column:
                     text_input = gr.Textbox(
                         label=TRANSLATIONS["en"]["paste_text_label"],
                         lines=10,
@@ -258,6 +261,11 @@ class TranscriptTransformerApp:
                     label=TRANSLATIONS["en"]["examples_label"],
                     value=True
                 )
+                
+                use_thinking_model = gr.Checkbox(
+                    label=TRANSLATIONS["en"]["thinking_model_label"],
+                    value=True
+                )
             
             # Submit button
             with gr.Row():
@@ -277,9 +285,15 @@ class TranscriptTransformerApp:
                     interactive=True
                 )
             
+            # Map language dropdown values to language codes
+            lang_map = {
+                "🇺🇸 English": "en",
+                "🇪🇸 Español": "es"
+            }
+            
             # Handle visibility of input columns based on selection
             def update_input_visibility(language_display, choice):
-                language = lang_map.get(language_display, "en") # lang_map is accessible from outer scope
+                language = lang_map.get(language_display, "en")
                 return [
                     gr.update(visible=(choice == TRANSLATIONS[language]["input_type_options"][0])),  # pdf_column
                     gr.update(visible=(choice == TRANSLATIONS[language]["input_type_options"][1]))  # text_column
@@ -287,7 +301,7 @@ class TranscriptTransformerApp:
             
             # Get language code from display value
             def get_language_code(language_display):
-                return lang_map.get(language_display, "en") # lang_map is accessible from outer scope
+                return lang_map.get(language_display, "en")
             
             # Update UI elements when language changes
             def update_ui_with_display(language_display):
@@ -295,21 +309,18 @@ class TranscriptTransformerApp:
                 self.current_language = language
                 
                 translations = TRANSLATIONS[language]
-                # Default input type to Raw Text when language changes
-                default_input_type = translations["input_type_options"][1] 
                 
                 return [
                     "# " + translations["title"],  # Title with markdown formatting
                     translations["subtitle"],
                     translations["input_type_label"],
-                    # Set default value to Raw Text here as well
-                    gr.update(choices=translations["input_type_options"], value=default_input_type, label=translations["input_type_label"]), 
+                    gr.update(choices=translations["input_type_options"], value=translations["input_type_options"][0], label=translations["input_type_label"]),
                     gr.update(label=translations["upload_pdf_label"]),
                     gr.update(label=translations["paste_text_label"], placeholder=translations["paste_text_placeholder"]),
                     gr.update(label=translations["guiding_prompt_label"], placeholder=translations["guiding_prompt_placeholder"], info=translations["guiding_prompt_info"]),
                     gr.update(label=translations["duration_label"]),
                     gr.update(label=translations["examples_label"]),
-                    # Removed the update for thinking_model_label
+                    gr.update(label=translations["thinking_model_label"]),
                     translations["submit_button"],
                     gr.update(label=translations["output_label"]),
                     gr.update(label=translations["show_timestamps"])
@@ -327,10 +338,10 @@ class TranscriptTransformerApp:
                 inputs=language_selector,
                 outputs=[
                     title_md, subtitle_md, 
-                    input_type, input_type, # input_type repeated as it's updated by this function
+                    input_type, input_type,
                     file_input, text_input,
                     initial_prompt,
-                    target_duration, include_examples, # Removed use_thinking_model from outputs
+                    target_duration, include_examples, use_thinking_model,
                     submit_btn, output,
                     timestamps_checkbox
                 ]
@@ -354,16 +365,15 @@ class TranscriptTransformerApp:
                     initial_prompt,
                     target_duration,
                     include_examples,
+                    use_thinking_model
                 ],
                 outputs=output
             )
             
-            # Example for PDF input (assuming example remains PDF for now, adjust if needed)
-            # Example data needs one less boolean value now
+            # Example for PDF input
             gr.Examples(
-                examples=[[example_pdf, "", "", 30, True]], 
-                # Removed use_thinking_model from inputs list
-                inputs=[file_input, text_input, initial_prompt, target_duration, include_examples] 
+                examples=[[example_pdf, "", "", 30, True, True]],
+                inputs=[file_input, text_input, initial_prompt, target_duration, include_examples, use_thinking_model]
             )
         
         interface.launch(share=True)

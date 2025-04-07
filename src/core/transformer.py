@@ -28,32 +28,31 @@ class TranscriptTransformer:
         """Initialize the transformer with selected LLM client"""
         self.text_processor = TextProcessor()
         self.use_gemini = use_gemini
-        # self.use_thinking_model = use_thinking_model # No longer needed for model selection
+        self.use_thinking_model = use_thinking_model
         
-        if use_gemini:
-            logger.info("Initializing with Gemini API")
-            # Always use the new pro preview model
+        if use_thinking_model:
+            if not use_gemini:
+                raise ValueError("Thinking model requires use_gemini=True")
+                
+            logger.info("Initializing with Gemini Flash Thinking API")
             self.openai_client = openai.OpenAI(
                 api_key=os.getenv('GEMINI_API_KEY'),
-                # Assuming the base URL for pro preview is the same as beta, adjust if needed
-                base_url="https://generativelanguage.googleapis.com/v1beta" 
+                base_url="https://generativelanguage.googleapis.com/v1alpha"
             )
             self.model_name = "gemini-2.0-flash-thinking-exp-01-21"
-            logger.debug(f"Using model: {self.model_name}")
-            
-        # Removed the separate block for use_thinking_model as it's now the default gemini case
-        # elif use_gemini: # This block is merged above
-        #     logger.info("Initializing with Gemini API")
-        #     self.openai_client = openai.OpenAI(...)
-        #     self.model_name = "gemini-2.0-flash-exp" 
-
-        else: # OpenAI case remains the same
+        elif use_gemini:
+            logger.info("Initializing with Gemini API")
+            self.openai_client = openai.OpenAI(
+                api_key=os.getenv('GEMINI_API_KEY'),
+                base_url="https://generativelanguage.googleapis.com/v1beta"
+            )
+            self.model_name = "gemini-2.0-flash-exp"
+        else:
             logger.info("Initializing with OpenAI API")
             self.openai_client = openai.OpenAI(
                 api_key=os.getenv('OPENAI_API_KEY')
             )
             self.model_name = "gpt-3.5-turbo"
-            logger.debug(f"Using model: {self.model_name}")
         
         # Target word counts
         self.words_per_minute = 130  # Average speaking rate
@@ -316,38 +315,24 @@ class TranscriptTransformer:
                     {"role": "user", "content": prompt}
                 ],
                 "temperature": 0.7,
-                "max_tokens": self.MAX_TOKENS
+                "max_tokens": self.MAX_TOKENS if self.use_thinking_model else 4000
             }
             
+            # Add thinking config if using experimental model
+            if self.use_thinking_model:
+                params["extra_body"] = {
+                    "thinking_config": {
+                        "include_thoughts": True
+                    }
+                }
+
             # Use the enhanced retry wrapper for API call
             def api_call():
                 return self.openai_client.chat.completions.create(**params)
                 
             response = self._api_call_with_enhanced_retries(api_call)
-            
-            # -- Start Defensive Checks --
-            content = None
-            if response and response.choices:
-                if len(response.choices) > 0:
-                    choice = response.choices[0]
-                    if choice and choice.message:
-                        if choice.message.content:
-                            content = choice.message.content.strip()
-                        else:
-                            logger.warning(f"API response for structure had null content.")
-                    else:
-                         logger.warning(f"API response for structure had null message in choice.")
-                else:
-                    logger.warning(f"API response for structure had empty choices list.")
-            else:
-                logger.warning(f"API response for structure was null or had no choices.")
-            # -- End Defensive Checks --
-            
-            # If content is still None after checks, use fallback
-            if content is None:
-                 logger.error(f"Failed to get valid content for structure after API call and checks.")
-                 # Provide a minimal fallback content to avoid complete failure
-                 content = f"Lecture on Transcript Topic\n\nWe apologize, but there was an error generating the structure for this lecture."
+            content = response.choices[0].message.content.strip()
+            logger.debug(f"Raw structure response: {content}")
             
             try:
                 structure_data = json.loads(content)
@@ -409,30 +394,7 @@ class TranscriptTransformer:
                 return self.openai_client.chat.completions.create(**params)
                 
             response = self._api_call_with_enhanced_retries(api_call)
-            
-            # -- Start Defensive Checks --
-            content = None
-            if response and response.choices:
-                if len(response.choices) > 0:
-                    choice = response.choices[0]
-                    if choice and choice.message:
-                        if choice.message.content:
-                            content = choice.message.content.strip()
-                        else:
-                            logger.warning(f"API response for fallback had null content.")
-                    else:
-                         logger.warning(f"API response for fallback had null message in choice.")
-                else:
-                    logger.warning(f"API response for fallback had empty choices list.")
-            else:
-                logger.warning(f"API response for fallback was null or had no choices.")
-            # -- End Defensive Checks --
-            
-            # If content is still None after checks, use fallback
-            if content is None:
-                 logger.error(f"Failed to get valid content for fallback after API call and checks.")
-                 # Provide a minimal fallback content to avoid complete failure
-                 content = f"Lecture on Transcript Topic\n\nWe apologize, but there was an error generating the structure for this lecture."
+            content = response.choices[0].message.content.strip()
             
             try:
                 return json.loads(content)
@@ -618,35 +580,20 @@ class TranscriptTransformer:
                 "max_tokens": self._calculate_max_tokens(section_type, target_words)
             }
             
+            # Add thinking config if using experimental model
+            if self.use_thinking_model:
+                params["extra_body"] = {
+                    "thinking_config": {
+                        "include_thoughts": True
+                    }
+                }
+
             # Use the enhanced retry wrapper for API call
             def api_call():
                 return self.openai_client.chat.completions.create(**params)
                 
             response = self._api_call_with_enhanced_retries(api_call)
-            
-            # -- Start Defensive Checks --
-            content = None
-            if response and response.choices:
-                if len(response.choices) > 0:
-                    choice = response.choices[0]
-                    if choice and choice.message:
-                        if choice.message.content:
-                            content = choice.message.content.strip()
-                        else:
-                            logger.warning(f"API response for {section_type} had null content.")
-                    else:
-                         logger.warning(f"API response for {section_type} had null message in choice.")
-                else:
-                    logger.warning(f"API response for {section_type} had empty choices list.")
-            else:
-                logger.warning(f"API response for {section_type} was null or had no choices.")
-            # -- End Defensive Checks --
-            
-            # If content is still None after checks, use fallback
-            if content is None:
-                 logger.error(f"Failed to get valid content for {section_type} after API call and checks.")
-                 # Provide a minimal fallback content to avoid complete failure
-                 content = f"{time_marker} {section_type.capitalize()} (Error retrieving generated content)\n\nWe apologize, but there was an error generating the content for this section."
+            content = response.choices[0].message.content.strip()
             
             # Validate output length
             content_words = self.text_processor.count_words(content)
@@ -663,6 +610,16 @@ class TranscriptTransformer:
         """Calculate appropriate max_tokens based on section and model"""
         # 1 token ≈ 4 caracteres (1 palabra ≈ 1.33 tokens)
         base_tokens = int(target_words * 1.5)  # Margen para formato
+        
+        if self.use_thinking_model:
+            # Permite hasta 64k tokens pero limita por sección
+            section_limits = {
+                'introduction': 8000,
+                'main': 32000,
+                'practical': 16000,
+                'summary': 8000
+            }
+            return min(base_tokens * 2, section_limits.get(section_type, 16000))
         
         # Límites para otros modelos
         return min(base_tokens + 1000, self.MAX_TOKENS)
